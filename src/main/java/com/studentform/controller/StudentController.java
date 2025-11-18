@@ -66,7 +66,7 @@ public class StudentController {
 
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN','ADMIN_CELL')")
+    @PreAuthorize("hasAnyRole('ADMIN','ADMIN_CELL')")
     public List<Student> getAllStudents() {
         return studentRepository.findAll();
     }
