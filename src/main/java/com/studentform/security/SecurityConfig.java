@@ -1,11 +1,13 @@
 package com.studentform.security;
 
-import com.studentform.service.CustomAdminDetailsService;
 import com.studentform.service.CustomAdminCellDetailsService;
+import com.studentform.service.CustomAdminDetailsService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.*;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.authentication.*;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -14,9 +16,10 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.*;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.*;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 
 import java.util.List;
@@ -26,63 +29,46 @@ import java.util.List;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    @Autowired
-    private JwtFilter jwtFilter;
+    @Autowired private JwtFilter jwtFilter;
+    @Autowired private CustomAdminCellDetailsService adminCellUserDetailsService;
+    @Autowired private CustomAdminDetailsService adminUserDetailsService;
 
-    @Autowired
-    private CustomAdminCellDetailsService adminCellUserDetailsService;
-
-    @Autowired
-    private CustomAdminDetailsService adminUserDetailsService;
-
-    // ----------------------------------------------
-    // 🔥 MAIN SECURITY CONFIG
-    // ----------------------------------------------
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 .authorizeHttpRequests(auth -> auth
 
-                        // -----------------------------------------
-                        // 🔓 PUBLIC ENDPOINTS (NO TOKEN REQUIRED)
-                        // -----------------------------------------
-                        .requestMatchers(HttpMethod.POST, "/api/students").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/admin/students/views").permitAll()
+                        // PUBLIC ENDPOINTS
+                        .requestMatchers("/api/students/**").permitAll()
+                        .requestMatchers("/api/admin/students/views").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
+                        .requestMatchers("/api/auth/admincell/login", "/api/auth/admincell/register").permitAll()
 
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/admincell/login", "/api/auth/admincell/register").permitAll()
-
-                        // -----------------------------------------
-                        // 🔐 PROTECTED (ADMIN)
-                        // -----------------------------------------
+                        // PROTECTED ROUTES
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-
-                        // -----------------------------------------
-                        // 🔐 PROTECTED (ADMIN_CELL)
-                        // -----------------------------------------
                         .requestMatchers("/api/admincell/**").hasRole("ADMIN_CELL")
 
-                        // -----------------------------------------
-                        // 🔒 ALL OTHER REQUESTS REQUIRE AUTH
-                        // -----------------------------------------
+                        // Everything else requires authentication
                         .anyRequest().authenticated()
                 )
 
                 .authenticationManager(authenticationManager());
 
+        // Register CORS filter BEFORE JWT filter
+        http.addFilterBefore(corsFilter(), UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // ----------------------------------------------
-    // 🔥 AUTH MANAGER
-    // ----------------------------------------------
+    // -------------------------------------------------
+    // AUTH MANAGER
+    // -------------------------------------------------
     @Bean
     public AuthenticationManager authenticationManager() {
         return new ProviderManager(
@@ -91,17 +77,17 @@ public class SecurityConfig {
         );
     }
 
-    // ----------------------------------------------
-    // 🔥 PASSWORD ENCODER
-    // ----------------------------------------------
+    // -------------------------------------------------
+    // PASSWORD ENCODER
+    // -------------------------------------------------
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    // ----------------------------------------------
-    // 🔥 AUTH PROVIDERS
-    // ----------------------------------------------
+    // -------------------------------------------------
+    // AUTH PROVIDERS
+    // -------------------------------------------------
     @Bean
     public DaoAuthenticationProvider adminAuthenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
@@ -118,32 +104,32 @@ public class SecurityConfig {
         return provider;
     }
 
-    // ----------------------------------------------
-    // 🔥 CORS CONFIG FOR VERCEL + RENDER + LOCALHOST
-    // ----------------------------------------------
+    // -------------------------------------------------
+    // CORS allowed: LOCALHOST + VERCEL + RENDER
+    // -------------------------------------------------
     @Bean
     public CorsFilter corsFilter() {
-        CorsConfiguration config = new CorsConfiguration();
 
+        CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
 
-        // Localhost
+        // Allow your frontends
         config.addAllowedOriginPattern("http://localhost:3000");
         config.addAllowedOriginPattern("http://localhost:3001");
-
-        // Vercel (wildcard support)
         config.addAllowedOriginPattern("https://*.vercel.app");
-
-        // Render frontend (if used)
         config.addAllowedOriginPattern("https://*.onrender.com");
 
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+
+        config.setAllowedHeaders(List.of(
+                "Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"
+        ));
+
+        config.setExposedHeaders(List.of("Authorization"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
 
         return new CorsFilter(source);
     }
-
 }
