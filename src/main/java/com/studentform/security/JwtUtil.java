@@ -1,71 +1,83 @@
 package com.studentform.security;
 
-import io.jsonwebtoken.*;
-import io.jsonwebtoken.security.Keys;
+import com.studentform.service.CustomAdminCellDetailsService;
+import com.studentform.service.CustomAdminDetailsService;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
 
-import java.security.Key;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Function;
+import java.io.IOException;
 
 @Component
-public class JwtUtil {
+public class JwtFilter extends OncePerRequestFilter {
 
-    private final String SECRET_KEY = "mysecretkeymysecretkeymysecretkey123";
-    private final Key key = Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
+    @Autowired
+    private JwtUtil jwtUtil;
 
-    public String extractUsername(String token) {
-        return extractClaim(token, Claims::getSubject);
-    }
+    @Autowired
+    private CustomAdminDetailsService adminService;
 
-    public String extractRole(String token) {
-        return extractClaim(token, claims -> claims.get("role", String.class));
-    }
+    @Autowired
+    private CustomAdminCellDetailsService adminCellService;
 
-    public Date extractExpiration(String token) {
-        return extractClaim(token, Claims::getExpiration);
-    }
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+            throws ServletException, IOException {
 
-    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(token);
-        return claimsResolver.apply(claims);
-    }
+        final String authHeader = request.getHeader("Authorization");
 
-    private Claims extractAllClaims(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
-    }
+        String username = null;
+        String jwt = null;
 
-    private Boolean isTokenExpired(String token) {
-        return extractExpiration(token).before(new Date());
-    }
-
-    public String generateToken(String username, String role) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("role", role);
-        return createToken(claims, username);
-    }
-
-    private String createToken(Map<String, Object> claims, String subject) {
-        return Jwts.builder()
-                .setClaims(claims)
-                .setSubject(subject)
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 10)) // 10 hours
-                .signWith(key, SignatureAlgorithm.HS256)
-                .compact();
-    }
-
-    public Boolean validateToken(String token) {
-        try {
-            return !isTokenExpired(token);
-        } catch (JwtException | IllegalArgumentException e) {
-            return false;
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            jwt = authHeader.substring(7);
+            username = jwtUtil.extractUsername(jwt);
         }
+
+        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+
+            String role = jwtUtil.extractRole(jwt);
+            UserDetails userDetails = null;
+
+            if ("ADMIN".equals(role)) {
+                userDetails = adminService.loadUserByUsername(username);
+            } else if ("ADMIN_CELL".equals(role)) {
+                userDetails = adminCellService.loadUserByUsername(username);
+            }
+
+            if (userDetails != null && jwtUtil.validateToken(jwt)) {
+                UsernamePasswordAuthenticationToken authToken =
+                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+
+                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+            }
+        }
+
+        chain.doFilter(request, response);
+    }
+
+    // ----------------------------------------------
+    // 🔥 SKIP JWT FILTER FOR PUBLIC ENDPOINTS
+    // ----------------------------------------------
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+
+        return path.equals("/api/students")
+                || path.equals("/api/admin/students/views")
+                || path.startsWith("/api/auth/login")
+                || path.startsWith("/api/auth/register")
+                || path.startsWith("/api/auth/admincell/login")
+                || path.startsWith("/api/auth/admincell/register");
     }
 }
