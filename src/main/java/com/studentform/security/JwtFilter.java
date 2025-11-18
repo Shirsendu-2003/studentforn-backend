@@ -2,10 +2,8 @@ package com.studentform.security;
 
 import com.studentform.service.CustomAdminCellDetailsService;
 import com.studentform.service.CustomAdminDetailsService;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.*;
+import jakarta.servlet.http.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -29,13 +27,13 @@ public class JwtFilter extends OncePerRequestFilter {
                                     FilterChain chain)
             throws ServletException, IOException {
 
-        // Allow preflight without token
+        // Allow CORS preflight requests
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             chain.doFilter(request, response);
             return;
         }
 
-        final String header = request.getHeader("Authorization");
+        String header = request.getHeader("Authorization");
         String token = null;
         String username = null;
 
@@ -49,17 +47,18 @@ public class JwtFilter extends OncePerRequestFilter {
             String role = jwtUtil.extractRole(token);
             UserDetails userDetails = null;
 
-            if ("ADMIN".equals(role)) {
+            if ("ADMIN".equals(role))
                 userDetails = adminService.loadUserByUsername(username);
-            } else if ("ADMIN_CELL".equals(role)) {
+
+            else if ("ADMIN_CELL".equals(role))
                 userDetails = adminCellService.loadUserByUsername(username);
-            }
 
             if (userDetails != null && jwtUtil.validateToken(token)) {
                 UsernamePasswordAuthenticationToken auth =
                         new UsernamePasswordAuthenticationToken(
                                 userDetails, null, userDetails.getAuthorities()
                         );
+
                 auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
@@ -74,16 +73,12 @@ public class JwtFilter extends OncePerRequestFilter {
         String path = request.getRequestURI().replaceAll("//+", "/");
         String method = request.getMethod();
 
-        // Allow public form submission only: POST /api/students
         if (path.equals("/api/students") && method.equals("POST")) return true;
 
-        // Allow authentication routes
         if (path.startsWith("/api/auth")) return true;
 
-        // Allow OPTIONS / Preflight
         if ("OPTIONS".equalsIgnoreCase(method)) return true;
 
-        // Everything else must go through JWT validation
         return false;
     }
 }
