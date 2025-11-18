@@ -63,12 +63,19 @@ public class JwtFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
-        String path = request.getRequestURI();
-        return path.equals("/api/auth/login") ||
-                path.equals("/api/auth/register") ||
-                path.equals("/api/auth/admincell/login") ||
-                path.equals("/api/auth/admincell/register");
-    }
+   @Override
+protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+    String path = request.getRequestURI();
+    
+    // Public endpoints
+    if (path.startsWith("/api/students")) return true;
+    if (path.equals("/api/auth/login")) return true;
+    if (path.equals("/api/auth/register")) return true;
+    if (path.equals("/api/auth/admincell/login")) return true;
+    if (path.equals("/api/auth/admincell/register")) return true;
+    if (path.equals("/api/admin/students/views")) return true;
+
+    return false;
+}
+
 }
