@@ -35,41 +35,54 @@ public class SecurityConfig {
     @Autowired
     private CustomAdminDetailsService adminUserDetailsService;
 
+    // ----------------------------------------------
+    // 🔥 MAIN SECURITY CONFIG
+    // ----------------------------------------------
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+
         http
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
                 .authorizeHttpRequests(auth -> auth
+
+                        // -----------------------------------------
+                        // 🔓 PUBLIC ENDPOINTS (NO TOKEN REQUIRED)
+                        // -----------------------------------------
                         .requestMatchers(HttpMethod.POST, "/api/students").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/admin/students/views").permitAll()
+
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/admincell/login", "/api/auth/admincell/register").permitAll()
 
-                        // 👇 Allow "views" BEFORE blocking all /api/admin/**
-                        .requestMatchers(HttpMethod.GET, "/api/admin/students/views").permitAll()
-
-                        .requestMatchers("/api/admincell/**").hasRole("ADMIN_CELL")
+                        // -----------------------------------------
+                        // 🔐 PROTECTED (ADMIN)
+                        // -----------------------------------------
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/admin").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/admincell").hasRole("ADMIN_CELL")
-                        .requestMatchers(HttpMethod.GET, "/api/admin/students").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/admincell/students").hasRole("ADMIN_CELL")
-                        .requestMatchers(HttpMethod.GET, "/api/admin/students/{id}/export/{type}").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/admin/students/exports/excel", "/api/admin/students/exports/pdf").hasRole("ADMIN")
 
-                        .requestMatchers(HttpMethod.PUT, "/api/admincell/students/{id}/remark").hasRole("ADMIN_CELL")
+                        // -----------------------------------------
+                        // 🔐 PROTECTED (ADMIN_CELL)
+                        // -----------------------------------------
+                        .requestMatchers("/api/admincell/**").hasRole("ADMIN_CELL")
+
+                        // -----------------------------------------
+                        // 🔒 ALL OTHER REQUESTS REQUIRE AUTH
+                        // -----------------------------------------
                         .anyRequest().authenticated()
                 )
-                .authenticationManager(authenticationManager()); // Explicitly set the custom manager
-        // Note: The two authenticationProvider() calls below are removed
-        // because the AuthenticationManager is now explicitly defined with both providers.
+
+                .authenticationManager(authenticationManager());
 
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 
-    // This bean correctly wires up both user details services
+    // ----------------------------------------------
+    // 🔥 AUTH MANAGER
+    // ----------------------------------------------
     @Bean
     public AuthenticationManager authenticationManager() {
         return new ProviderManager(
@@ -78,46 +91,59 @@ public class SecurityConfig {
         );
     }
 
+    // ----------------------------------------------
+    // 🔥 PASSWORD ENCODER
+    // ----------------------------------------------
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    // ----------------------------------------------
+    // 🔥 AUTH PROVIDERS
+    // ----------------------------------------------
     @Bean
     public DaoAuthenticationProvider adminAuthenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(adminUserDetailsService);
-        authProvider.setPasswordEncoder(passwordEncoder());
-        return authProvider;
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(adminUserDetailsService);
+        provider.setPasswordEncoder(passwordEncoder());
+        return provider;
     }
 
     @Bean
     public DaoAuthenticationProvider adminCellAuthenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(adminCellUserDetailsService);
-        authProvider.setPasswordEncoder(passwordEncoder());
-        return authProvider;
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(adminCellUserDetailsService);
+        provider.setPasswordEncoder(passwordEncoder());
+        return provider;
     }
-@Bean
-public CorsFilter corsFilter() {
-    CorsConfiguration config = new CorsConfiguration();
-    config.setAllowCredentials(true);
 
-    // Allow Localhost
-    config.addAllowedOriginPattern("http://localhost:3000");
-    config.addAllowedOriginPattern("http://localhost:3001");
+    // ----------------------------------------------
+    // 🔥 CORS CONFIG FOR VERCEL + RENDER + LOCALHOST
+    // ----------------------------------------------
+    @Bean
+    public CorsFilter corsFilter() {
+        CorsConfiguration config = new CorsConfiguration();
 
-    // Allow all Vercel preview + production URLs
-    config.addAllowedOriginPattern("https://*.vercel.app");
+        config.setAllowCredentials(true);
 
-    config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-    config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        // Localhost
+        config.addAllowedOriginPattern("http://localhost:3000");
+        config.addAllowedOriginPattern("http://localhost:3001");
 
-    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-    source.registerCorsConfiguration("/**", config);
+        // Vercel (wildcard support)
+        config.addAllowedOriginPattern("https://*.vercel.app");
 
-    return new CorsFilter(source);
-}
+        // Render frontend (if used)
+        config.addAllowedOriginPattern("https://*.onrender.com");
 
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+
+        return new CorsFilter(source);
+    }
 
 }
