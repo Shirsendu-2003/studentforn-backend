@@ -57,8 +57,6 @@ public class StudentController {
 
         Student savedStudent = studentRepository.save(student);
 
-        // Send email after saving
-        emailService.sendVerificationEmail(savedStudent.getEmail(), savedStudent.getName());
 
         return savedStudent;
     }
