@@ -21,7 +21,6 @@ import org.springframework.web.filter.CorsFilter;
 import java.util.List;
 
 @Configuration
-@EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
 
@@ -39,38 +38,26 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
 
-                        // ---------------------
                         // PUBLIC ENDPOINTS
-                        // ---------------------
                         .requestMatchers(HttpMethod.POST, "/api/students").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/admin/students/views").permitAll()
+                        .requestMatchers("/api/admin/students/views").permitAll()
 
-                        // ---------------------
-                        // ADMIN PROTECTED
-                        // ---------------------
+                        // PROTECTED ROUTES
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-
-                        // ---------------------
-                        // ADMIN CELL PROTECTED
-                        // ---------------------
                         .requestMatchers("/api/admincell/**").hasRole("ADMIN_CELL")
 
-                        // ---------------------
-                        // All others must require auth
-                        // ---------------------
+                        // OTHER ROUTES REQUIRE JWT
                         .anyRequest().authenticated()
                 )
                 .authenticationManager(authenticationManager());
 
-        // CORS must be first
         http.addFilterBefore(corsFilter(), UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // AUTH MANAGER
     @Bean
     public AuthenticationManager authenticationManager() {
         return new ProviderManager(
@@ -79,13 +66,11 @@ public class SecurityConfig {
         );
     }
 
-    // PASSWORD ENCODER
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    // ADMIN
     @Bean
     public DaoAuthenticationProvider adminAuthenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
@@ -94,7 +79,6 @@ public class SecurityConfig {
         return provider;
     }
 
-    // ADMIN_CELL
     @Bean
     public DaoAuthenticationProvider adminCellAuthenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
@@ -103,21 +87,18 @@ public class SecurityConfig {
         return provider;
     }
 
-    // GLOBAL CORS — supports Vercel + Render + Localhost
     @Bean
     public CorsFilter corsFilter() {
-
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowCredentials(true);
 
-        // Allowed Origins
+        config.setAllowCredentials(true);
         config.addAllowedOriginPattern("http://localhost:3000");
         config.addAllowedOriginPattern("http://localhost:3001");
         config.addAllowedOriginPattern("https://*.vercel.app");
         config.addAllowedOriginPattern("https://*.onrender.com");
 
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
         config.setExposedHeaders(List.of("Authorization"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
