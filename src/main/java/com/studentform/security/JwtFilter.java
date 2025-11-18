@@ -29,18 +29,18 @@ public class JwtFilter extends OncePerRequestFilter {
                                     FilterChain chain)
             throws ServletException, IOException {
 
-        // Always allow OPTIONS preflight requests
+        // Allow preflight without token
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             chain.doFilter(request, response);
             return;
         }
 
-        final String authHeader = request.getHeader("Authorization");
+        final String header = request.getHeader("Authorization");
         String token = null;
         String username = null;
 
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            token = authHeader.substring(7);
+        if (header != null && header.startsWith("Bearer ")) {
+            token = header.substring(7);
             username = jwtUtil.extractUsername(token);
         }
 
@@ -58,10 +58,9 @@ public class JwtFilter extends OncePerRequestFilter {
             if (userDetails != null && jwtUtil.validateToken(token)) {
                 UsernamePasswordAuthenticationToken auth =
                         new UsernamePasswordAuthenticationToken(
-                                userDetails, null, userDetails.getAuthorities());
-
+                                userDetails, null, userDetails.getAuthorities()
+                        );
                 auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }
@@ -73,15 +72,18 @@ public class JwtFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
 
         String path = request.getRequestURI().replaceAll("//+", "/");
+        String method = request.getMethod();
 
-        // Public endpoints — NO authentication required
-        return path.startsWith("/api/students")                  // student submission
-                || path.startsWith("/api/admin/students/views") // stats public
-                || path.startsWith("/api/auth/login")
-                || path.startsWith("/api/auth/register")
-                || path.startsWith("/api/auth/admincell/login")
-                || path.startsWith("/api/auth/admincell/register")
-                || path.startsWith("/api/public")
-                || "OPTIONS".equalsIgnoreCase(request.getMethod());
+        // Allow public form submission only: POST /api/students
+        if (path.equals("/api/students") && method.equals("POST")) return true;
+
+        // Allow authentication routes
+        if (path.startsWith("/api/auth")) return true;
+
+        // Allow OPTIONS / Preflight
+        if ("OPTIONS".equalsIgnoreCase(method)) return true;
+
+        // Everything else must go through JWT validation
+        return false;
     }
 }
