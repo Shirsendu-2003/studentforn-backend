@@ -1,4 +1,6 @@
-# ---- build stage ----
+# ============================
+#  Build Stage
+# ============================
 FROM eclipse-temurin:21-jdk AS build
 WORKDIR /workspace
 
@@ -7,32 +9,41 @@ COPY .mvn .mvn
 COPY pom.xml .
 RUN chmod +x mvnw
 
+# Download dependencies
 RUN ./mvnw -B -ntp dependency:go-offline
 
+# Copy source code
 COPY src ./src
+
+# Build project
 RUN ./mvnw -B -DskipTests clean package
 
 
-# ---- runtime stage ----
+# ============================
+#  Runtime Stage
+# ============================
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
-# Install curl for healthcheck
+# Install curl for health checks
 USER root
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Add non-root user (optional)
+# Add non-root user
 RUN addgroup --system appgroup && adduser --system appuser --ingroup appgroup
 USER appuser
 
 COPY --from=build /workspace/target/*.jar app.jar
 
-# Use Render's dynamic PORT
-ENV PORT=8080
+# Render will inject PORT automatically
+ENV PORT=$PORT
 
-EXPOSE 8080
+# Expose the dynamic port
+EXPOSE ${PORT}
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+# Health check (works on Render)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=5 \
   CMD curl -f http://localhost:${PORT}/actuator/health || exit 1
 
-ENTRYPOINT ["sh", "-c", "java -jar /app/app.jar --server.port=${PORT}"]
+# Start Spring Boot with Render's injected PORT
+ENTRYPOINT ["sh", "-c", "java -jar app.jar --server.port=${PORT}"]
