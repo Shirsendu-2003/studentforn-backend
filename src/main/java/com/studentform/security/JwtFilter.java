@@ -19,16 +19,28 @@ import java.io.IOException;
 @Component
 public class JwtFilter extends OncePerRequestFilter {
 
-    @Autowired private JwtUtil jwtUtil;
-    @Autowired private CustomAdminDetailsService adminService;
-    @Autowired private CustomAdminCellDetailsService adminCellService;
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    @Autowired
+    private CustomAdminDetailsService adminService;
+
+    @Autowired
+    private CustomAdminCellDetailsService adminCellService;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain chain)
             throws ServletException, IOException {
 
-        final String authHeader = request.getHeader("Authorization");
+        // Allow CORS preflight requests always
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            chain.doFilter(request, response);
+            return;
+        }
 
+        final String authHeader = request.getHeader("Authorization");
         String token = null;
         String username = null;
 
@@ -38,17 +50,23 @@ public class JwtFilter extends OncePerRequestFilter {
         }
 
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+
             String role = jwtUtil.extractRole(token);
             UserDetails userDetails = null;
 
-            if ("ADMIN".equals(role)) userDetails = adminService.loadUserByUsername(username);
-            else if ("ADMIN_CELL".equals(role)) userDetails = adminCellService.loadUserByUsername(username);
+            if ("ADMIN".equals(role)) {
+                userDetails = adminService.loadUserByUsername(username);
+            } else if ("ADMIN_CELL".equals(role)) {
+                userDetails = adminCellService.loadUserByUsername(username);
+            }
 
             if (userDetails != null && jwtUtil.validateToken(token)) {
                 UsernamePasswordAuthenticationToken auth =
-                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                        new UsernamePasswordAuthenticationToken(
+                                userDetails, null, userDetails.getAuthorities());
 
                 auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }
@@ -60,11 +78,16 @@ public class JwtFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
 
-        return path.equals("/api/students")
-                || path.equals("/api/admin/students/views")
-                || path.startsWith("/api/auth/login")
-                || path.startsWith("/api/auth/register")
-                || path.startsWith("/api/auth/admincell/login")
-                || path.startsWith("/api/auth/admincell/register");
+        // Normalize for Render deployment (sometimes adds // or /)
+        path = path.replaceAll("//+", "/");
+
+        // Public endpoints
+        return path.equals("/api/students")                      // student form submission
+                || path.startsWith("/api/auth/login")            // admin login
+                || path.startsWith("/api/auth/register")         // admin register
+                || path.startsWith("/api/auth/admincell/login")  // admin cell login
+                || path.startsWith("/api/auth/admincell/register")
+                || path.startsWith("/api/public")                // optional public apis
+                || "OPTIONS".equalsIgnoreCase(request.getMethod());
     }
 }
