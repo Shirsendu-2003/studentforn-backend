@@ -17,7 +17,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin")
-@CrossOrigin(origins = "http://localhost:3001") // Adjust as per your frontend
 public class AdminController {
 
     @Autowired

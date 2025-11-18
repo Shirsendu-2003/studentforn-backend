@@ -8,7 +8,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/students/views")
-@CrossOrigin(origins = "http://localhost:3001")
 public class ViewStatsController {
 
     private final ViewStatsService viewService;

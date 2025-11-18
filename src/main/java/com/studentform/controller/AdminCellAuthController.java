@@ -13,7 +13,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/auth/admincell")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:3001")
 public class AdminCellAuthController {
 
     private final AdminCellService adminCellService;

@@ -19,7 +19,6 @@ import java.util.Optional;
  */
 @RestController
 @RequestMapping("/api/admincell")
-@CrossOrigin(origins = "http://localhost:3001")
 public class AdminCellController {
 
     @Autowired
