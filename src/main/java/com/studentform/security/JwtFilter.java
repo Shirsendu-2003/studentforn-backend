@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -20,62 +19,52 @@ import java.io.IOException;
 @Component
 public class JwtFilter extends OncePerRequestFilter {
 
-    @Autowired
-    private JwtUtil jwtUtil;
-
-    @Autowired
-    private CustomAdminDetailsService customAdminDetailsService;
-    @Autowired
-    private CustomAdminCellDetailsService customAdminCellDetailsService;
+    @Autowired private JwtUtil jwtUtil;
+    @Autowired private CustomAdminDetailsService adminService;
+    @Autowired private CustomAdminCellDetailsService adminCellService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
+
         final String authHeader = request.getHeader("Authorization");
 
+        String token = null;
         String username = null;
-        String jwt = null;
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            jwt = authHeader.substring(7);
-            username = jwtUtil.extractUsername(jwt);
+            token = authHeader.substring(7);
+            username = jwtUtil.extractUsername(token);
         }
 
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            String role = jwtUtil.extractRole(jwt);
+            String role = jwtUtil.extractRole(token);
             UserDetails userDetails = null;
 
-            if ("ADMIN".equals(role)) {
-                userDetails = this.customAdminDetailsService.loadUserByUsername(username);
-            } else if ("ADMIN_CELL".equals(role)) {
-                userDetails = this.customAdminCellDetailsService.loadUserByUsername(username);
-            }
+            if ("ADMIN".equals(role)) userDetails = adminService.loadUserByUsername(username);
+            else if ("ADMIN_CELL".equals(role)) userDetails = adminCellService.loadUserByUsername(username);
 
-            if (userDetails != null && jwtUtil.validateToken(jwt)) {
-                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                        userDetails, null, userDetails.getAuthorities()
-                );
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+            if (userDetails != null && jwtUtil.validateToken(token)) {
+                UsernamePasswordAuthenticationToken auth =
+                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+
+                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }
 
         chain.doFilter(request, response);
     }
 
-   @Override
-protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
-    String path = request.getRequestURI();
-    
-    // Public endpoints
-    if (path.startsWith("/api/students")) return true;
-    if (path.equals("/api/auth/login")) return true;
-    if (path.equals("/api/auth/register")) return true;
-    if (path.equals("/api/auth/admincell/login")) return true;
-    if (path.equals("/api/auth/admincell/register")) return true;
-    if (path.equals("/api/admin/students/views")) return true;
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
 
-    return false;
-}
-
+        return path.equals("/api/students")
+                || path.equals("/api/admin/students/views")
+                || path.startsWith("/api/auth/login")
+                || path.startsWith("/api/auth/register")
+                || path.startsWith("/api/auth/admincell/login")
+                || path.startsWith("/api/auth/admincell/register");
+    }
 }
