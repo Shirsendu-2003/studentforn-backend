@@ -1,83 +1,67 @@
 package com.studentform.security;
 
-import com.studentform.service.CustomAdminCellDetailsService;
-import com.studentform.service.CustomAdminDetailsService;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import io.jsonwebtoken.*;
+import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Component;
-import org.springframework.web.filter.OncePerRequestFilter;
 
-import java.io.IOException;
+import java.security.Key;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
 
 @Component
-public class JwtFilter extends OncePerRequestFilter {
+public class JwtUtil {
 
-    @Autowired
-    private JwtUtil jwtUtil;
+    private final String SECRET_KEY = "mysecretkeymysecretkeymysecretkey123";
+    private final Key key = Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
 
-    @Autowired
-    private CustomAdminDetailsService adminService;
-
-    @Autowired
-    private CustomAdminCellDetailsService adminCellService;
-
-    @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws ServletException, IOException {
-
-        final String authHeader = request.getHeader("Authorization");
-
-        String username = null;
-        String jwt = null;
-
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            jwt = authHeader.substring(7);
-            username = jwtUtil.extractUsername(jwt);
-        }
-
-        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-
-            String role = jwtUtil.extractRole(jwt);
-            UserDetails userDetails = null;
-
-            if ("ADMIN".equals(role)) {
-                userDetails = adminService.loadUserByUsername(username);
-            } else if ("ADMIN_CELL".equals(role)) {
-                userDetails = adminCellService.loadUserByUsername(username);
-            }
-
-            if (userDetails != null && jwtUtil.validateToken(jwt)) {
-                UsernamePasswordAuthenticationToken authToken =
-                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-                SecurityContextHolder.getContext().setAuthentication(authToken);
-            }
-        }
-
-        chain.doFilter(request, response);
+    public String extractUsername(String token) {
+        return extractClaim(token, Claims::getSubject);
     }
 
-    // ----------------------------------------------
-    // 🔥 SKIP JWT FILTER FOR PUBLIC ENDPOINTS
-    // ----------------------------------------------
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
+    public String extractRole(String token) {
+        return extractClaim(token, claims -> claims.get("role", String.class));
+    }
 
-        return path.equals("/api/students")
-                || path.equals("/api/admin/students/views")
-                || path.startsWith("/api/auth/login")
-                || path.startsWith("/api/auth/register")
-                || path.startsWith("/api/auth/admincell/login")
-                || path.startsWith("/api/auth/admincell/register");
+    public Date extractExpiration(String token) {
+        return extractClaim(token, Claims::getExpiration);
+    }
+
+    public <T> T extractClaim(String token, Function<Claims, T> resolver) {
+        final Claims claims = extractAllClaims(token);
+        return resolver.apply(claims);
+    }
+
+    private Claims extractAllClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
+    private Boolean isExpired(String token) {
+        return extractExpiration(token).before(new Date());
+    }
+
+    public Boolean validateToken(String token) {
+        try {
+            return !isExpired(token);
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    public String generateToken(String username, String role) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("role", role);
+        return Jwts.builder()
+                .setSubject(username)
+                .setClaims(claims)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 10 * 60 * 60 * 1000))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
     }
 }
