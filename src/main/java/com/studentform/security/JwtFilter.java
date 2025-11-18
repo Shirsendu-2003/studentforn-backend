@@ -19,14 +19,9 @@ import java.io.IOException;
 @Component
 public class JwtFilter extends OncePerRequestFilter {
 
-    @Autowired
-    private JwtUtil jwtUtil;
-
-    @Autowired
-    private CustomAdminDetailsService adminService;
-
-    @Autowired
-    private CustomAdminCellDetailsService adminCellService;
+    @Autowired private JwtUtil jwtUtil;
+    @Autowired private CustomAdminDetailsService adminService;
+    @Autowired private CustomAdminCellDetailsService adminCellService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -34,7 +29,7 @@ public class JwtFilter extends OncePerRequestFilter {
                                     FilterChain chain)
             throws ServletException, IOException {
 
-        // Allow CORS preflight requests always
+        // Always allow OPTIONS preflight requests
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             chain.doFilter(request, response);
             return;
@@ -76,18 +71,17 @@ public class JwtFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
 
-        // Normalize for Render deployment (sometimes adds // or /)
-        path = path.replaceAll("//+", "/");
+        String path = request.getRequestURI().replaceAll("//+", "/");
 
-        // Public endpoints
-        return path.equals("/api/students")                      // student form submission
-                || path.startsWith("/api/auth/login")            // admin login
-                || path.startsWith("/api/auth/register")         // admin register
-                || path.startsWith("/api/auth/admincell/login")  // admin cell login
+        // Public endpoints — NO authentication required
+        return path.startsWith("/api/students")                  // student submission
+                || path.startsWith("/api/admin/students/views") // stats public
+                || path.startsWith("/api/auth/login")
+                || path.startsWith("/api/auth/register")
+                || path.startsWith("/api/auth/admincell/login")
                 || path.startsWith("/api/auth/admincell/register")
-                || path.startsWith("/api/public")                // optional public apis
+                || path.startsWith("/api/public")
                 || "OPTIONS".equalsIgnoreCase(request.getMethod());
     }
 }
