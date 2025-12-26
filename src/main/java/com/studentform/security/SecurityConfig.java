@@ -108,7 +108,7 @@ public CorsFilter corsFilter() {
     config.addAllowedOriginPattern("http://localhost:3001");
 
     // Allow all Vercel preview + production URLs
-    config.addAllowedOriginPattern("https://*.vercel.app");
+    config.addAllowedOriginPattern("https://flourishing-mochi-54c580.netlify.app");
 
     config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
     config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
