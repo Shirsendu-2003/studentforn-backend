@@ -2,13 +2,18 @@
 FROM eclipse-temurin:21-jdk AS build
 WORKDIR /app
 
-# Copy Maven files first (for cache)
+# Copy Maven wrapper
 COPY pom.xml .
 COPY mvnw .
 COPY .mvn .mvn
+
+# ✅ FIX: make mvnw executable
+RUN chmod +x mvnw
+
+# Download dependencies (cache layer)
 RUN ./mvnw dependency:go-offline
 
-# Copy source and build
+# Copy source & build
 COPY src src
 RUN ./mvnw clean package -DskipTests
 
@@ -16,14 +21,9 @@ RUN ./mvnw clean package -DskipTests
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
-# Copy built JAR
 COPY --from=build /app/target/*.jar app.jar
 
-# Set timezone (India)
 ENV TZ=Asia/Kolkata
-
-# Expose app port
 EXPOSE 8080
 
-# Run app
 ENTRYPOINT ["java","-XX:+UseContainerSupport","-jar","app.jar"]
