@@ -16,7 +16,7 @@ public class EmailService {
         message.setTo(toEmail);
         message.setSubject("Email Verification");
         message.setText("Hello " + name + ",\n\nThank you for registering. Please check your email to verify your account.\n\nRegards,\nStudent Form Team");
-        message.setFrom("your_email@gmail.com"); // Replace with your sender email
+        message.setFrom("drsoitani10@gmail.com"); // Replace with your sender email
 
         mailSender.send(message);
     }
