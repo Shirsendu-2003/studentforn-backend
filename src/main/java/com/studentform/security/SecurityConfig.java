@@ -109,6 +109,8 @@ public CorsFilter corsFilter() {
 
     // Allow all Vercel preview + production URLs
     config.addAllowedOriginPattern("https://student-submission-portal-projects-three.vercel.app");
+    config.addAllowedOriginPattern("https://student-submission-portal-projects-oz-pratiks-projects-5e41753e.vercel.app");
+    
 
     config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
     config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
