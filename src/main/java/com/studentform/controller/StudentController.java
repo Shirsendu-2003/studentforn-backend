@@ -58,7 +58,15 @@ public class StudentController {
         Student savedStudent = studentRepository.save(student);
 
         // Send email after saving
-        emailService.sendVerificationEmail(savedStudent.getEmail(), savedStudent.getName());
+        // ✅ DO NOT FAIL API IF MAIL FAILS
+    try {
+        emailService.sendVerificationEmail(
+                savedStudent.getEmail(),
+                savedStudent.getName()
+        );
+    } catch (Exception e) {
+        System.err.println("⚠️ Email failed: " + e.getMessage());
+    }
 
         return savedStudent;
     }
